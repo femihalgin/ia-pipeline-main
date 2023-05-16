@@ -1,0 +1,117 @@
+---
+# tasks file for mongoDB setup
+- name: "install mongo"
+  hosts: apiservers
+  become: true
+  tasks:
+    - name: Install gnupg
+      package:
+        name: gnupg
+        state: present
+
+    - name: Import the public key used by the package management system
+      shell: wget -qO - https://www.mongodb.org/static/pgp/server-5.0.asc | sudo apt-key add -
+
+    - name: Create a list file for MongoDB
+      shell: echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/5.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-5.0.list
+
+    - name: Reload local package database
+      command: sudo apt-get update
+
+    - name: Installation of mongodb-org
+      package:
+        name: mongodb-org
+        state: present
+        update_cache: yes
+
+    - name: mongo start
+      command: sudo service mongod start
+
+    - name: service mongod status
+      command: sudo systemctl enable mongod
+
+#    - name: Start mongodb
+#      service:
+#        name: mongodb
+#        state: started
+#        enabled: yes
+
+
+##install nodejs
+- name: "Install node"
+  hosts: apiservers
+  become: yes
+  tasks:
+  - name: "Add nodejs apt key"
+    apt_key:
+      url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
+      state: present
+
+  - name: "Add nodejs 13.x ppa for apt repo"
+    apt_repository:
+      repo: deb https://deb.nodesource.com/node_14.x bionic main
+      update_cache: yes
+
+  - name: Reload local package database
+    command: sudo apt-get update
+
+  - name: "Install nodejs"
+    apt:
+      update_cache: yes
+      name: nodejs
+      state: present
+  - name: "Install pm2"
+    npm:
+      global: yes
+      name: "{{ item }}"
+    with_items:
+      - pm2
+
+  - name: Copy nodejs apps
+    copy:
+      src: ./files/social/
+      dest: /var/www/
+      remote_src: false
+      directory_mode: true
+    tags:
+      - parentdir
+
+  - name: Make my directory tree readable
+    file:
+      path: /var/www/
+      mode: u=rwX,g=rX,o=rX
+      recurse: yes
+
+  - name: Copy pm2 config file
+    copy:
+      src: files/pm2/
+      dest: /var/www/
+      remote_src: false
+#      directory_mode: true
+    tags:
+      - parentdir
+
+  - name: Changing perm of "ecosystem.config.cjs", adding "+x"
+    file: dest=/var/www/ecosystem.config.cjs mode=a+x
+
+  - name: Install packages based on package.json in userservice
+    community.general.npm:
+      path: /var/www/user-services
+  - name: Install packages based on package.json in content-service
+    community.general.npm:
+      path: /var/www/content-service
+
+#  - name: Kill PM2 Server
+#    command: sudo pm2 kill
+#  - name: delete existing pm2 processes if running
+#    command: pm2 delete all
+#    ignore_errors: True
+#    become: yes
+#
+  - name: Start/reload server
+    command: sudo sh /var/www/pm_script.sh
+    args:
+      chdir: /var/www/
+    ignore_errors: yes
+#  - name: run pm2 using shell
+#    shell: sudo sh /var/www/pm_script.sh

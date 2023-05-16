@@ -1,0 +1,14 @@
+
+stages:
+  - build
+#  - test
+  - deploy
+
+include:
+  - 'clientside/.gitlab-ci.yml'
+
+#deploy_client_job:
+#  stage: deploy
+#  script:
+#    - echo run ansible script
+#    - cd ansible && ansible-playbook -i inventory social.yml
